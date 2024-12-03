@@ -1,3 +1,5 @@
+#![no_std]
+
 use thiserror::Error;
 
 use core::cell::RefCell;
@@ -89,10 +91,10 @@ mod tests {
     use super::*;
 
     impl Interlockable for bool {
-        type Error = String;
+        type Error = &'static str;
         fn is_clear(&self) -> Result<(), Self::Error> {
             match self {
-                true => Err(String::from("Not clear!")),
+                true => Err("Not clear!"),
                 false => Ok(()),
             }
         }
