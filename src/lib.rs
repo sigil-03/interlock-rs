@@ -1,5 +1,4 @@
 #![no_std]
-
 use thiserror_no_std::Error;
 
 use core::cell::RefCell;
@@ -7,7 +6,6 @@ use core::cell::RefCell;
 /// the interlockable trait defines the behavior that the inner type T of the [`Interlock<T>`]
 /// is required to implement.
 pub trait Interlockable {
-    type Error;
     /// return true if T is in a state that allows clearing the interlock, false otherwise
     fn is_clear(&self) -> bool;
 }
@@ -89,7 +87,6 @@ mod tests {
     use super::*;
 
     impl Interlockable for bool {
-        type Error = &'static str;
         fn is_clear(&self) -> bool {
             !self.clone()
         }
