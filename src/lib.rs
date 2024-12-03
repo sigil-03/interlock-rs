@@ -8,9 +8,6 @@ use core::cell::RefCell;
 pub trait Interlockable {
     /// return true if T is in a state that allows clearing the interlock, false otherwise
     fn is_clear(&self) -> bool;
-
-    /// update self with a new value
-    fn update(&mut self, new: Self);
 }
 
 /// interlock crate errors
@@ -59,7 +56,7 @@ where
 
     /// sets the inner value, and asserts the interlock if the inner value is no longer clear
     pub fn set(&self, new_value: T) {
-        self.inner.borrow_mut().update(new_value);
+        self.inner.replace(new_value);
 
         // if we aren't in an active interlock state, and we
         // aren't clear anymore, assert the interlock
@@ -92,10 +89,6 @@ mod tests {
     impl Interlockable for bool {
         fn is_clear(&self) -> bool {
             !self.clone()
-        }
-
-        fn update(&mut self, new: Self) {
-            *self = new;
         }
     }
 
