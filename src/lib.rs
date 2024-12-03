@@ -34,7 +34,7 @@ impl<T> Interlock<T>
 where
     T: Interlockable + Clone,
 {
-    pub fn new(inner: T) -> Self {
+    pub const fn new(inner: T) -> Self {
         Self {
             inner: RefCell::new(inner),
             state: RefCell::new(InterlockState::Inactive),
