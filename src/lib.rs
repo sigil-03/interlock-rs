@@ -1,6 +1,6 @@
 #![no_std]
 
-use thiserror::Error;
+use thiserror_no_std::Error;
 
 use core::cell::RefCell;
 
