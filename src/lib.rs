@@ -8,8 +8,8 @@ use core::cell::RefCell;
 /// is required to implement.
 pub trait Interlockable {
     type Error;
-    /// return Ok(()) if T is in a state that allows clearing the interlock
-    fn is_clear(&self) -> Result<(), Self::Error>;
+    /// return true if T is in a state that allows clearing the interlock, false otherwise
+    fn is_clear(&self) -> bool;
 }
 
 /// interlock crate errors
@@ -48,11 +48,11 @@ where
     ///   * Err(Error::ClearError) if clearing the interlock was unsuccessful
     pub fn try_clear_interlock(&self) -> Result<(), Error> {
         match self.inner.borrow().is_clear() {
-            Ok(_) => {
+            true => {
                 self.state.replace(InterlockState::Inactive);
                 Ok(())
             }
-            Err(_) => Err(Error::ClearError),
+            false => Err(Error::ClearError),
         }
     }
 
@@ -62,9 +62,7 @@ where
 
         // if we aren't in an active interlock state, and we
         // aren't clear anymore, assert the interlock
-        if (!self.inner.borrow().is_clear().is_ok())
-            && (*self.state.borrow() == InterlockState::Inactive)
-        {
+        if (!self.inner.borrow().is_clear()) && (*self.state.borrow() == InterlockState::Inactive) {
             self.state.replace(InterlockState::Active);
         }
     }
@@ -92,11 +90,8 @@ mod tests {
 
     impl Interlockable for bool {
         type Error = &'static str;
-        fn is_clear(&self) -> Result<(), Self::Error> {
-            match self {
-                true => Err("Not clear!"),
-                false => Ok(()),
-            }
+        fn is_clear(&self) -> bool {
+            !self.clone()
         }
     }
 
