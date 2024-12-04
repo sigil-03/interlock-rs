@@ -27,6 +27,15 @@ pub enum InterlockState {
     Active,
 }
 
+impl From<InterlockState> for bool {
+    fn from(value: InterlockState) -> Self {
+        match value {
+            InterlockState::Active => true,
+            InterlockState::Inactive => false,
+        }
+    }
+}
+
 /// The interlock struct. Owns a type T which is the underlying value we interlock off of
 pub struct Interlock<T: Interlockable + Clone> {
     inner: T,
@@ -145,5 +154,14 @@ mod tests {
         assert_eq!(i1.get_state(), InterlockState::Active);
         i1.set(false);
         assert_eq!(i1.get_state(), InterlockState::Active);
+    }
+
+    #[test]
+    /// test that the boolean conversions haven't changed
+    fn interlock_state_boolean_conversion() {
+        let b1: bool = InterlockState::Active.into();
+        assert!(b1);
+        let b2: bool = InterlockState::Inactive.into();
+        assert!(!b2);
     }
 }
