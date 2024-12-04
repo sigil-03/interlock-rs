@@ -1,13 +1,16 @@
 #![no_std]
 use thiserror_no_std::Error;
 
-use core::cell::RefCell;
+use core::cell::Cell;
 
 /// the interlockable trait defines the behavior that the inner type T of the [`Interlock<T>`]
 /// is required to implement.
 pub trait Interlockable {
+    type UpdateType;
     /// return true if T is in a state that allows clearing the interlock, false otherwise
     fn is_clear(&self) -> bool;
+    fn set(&self, new: Self::UpdateType);
+    fn clear(&self, new: Self::UpdateType);
 }
 
 /// interlock crate errors
@@ -26,8 +29,8 @@ pub enum InterlockState {
 
 /// The interlock struct. Owns a type T which is the underlying value we interlock off of
 pub struct Interlock<T: Interlockable + Clone> {
-    inner: RefCell<T>,
-    state: RefCell<InterlockState>,
+    inner: T,
+    state: Cell<InterlockState>,
 }
 
 impl<T> Interlock<T>
@@ -36,8 +39,8 @@ where
 {
     pub const fn new(inner: T) -> Self {
         Self {
-            inner: RefCell::new(inner),
-            state: RefCell::new(InterlockState::Inactive),
+            inner,
+            state: Cell::new(InterlockState::Inactive),
         }
     }
 
@@ -45,7 +48,7 @@ where
     ///   * Ok(()) if clearing the interlock was successful
     ///   * Err(Error::ClearError) if clearing the interlock was unsuccessful
     pub fn try_clear_interlock(&self) -> Result<(), Error> {
-        match self.inner.borrow().is_clear() {
+        match self.inner.is_clear() {
             true => {
                 self.state.replace(InterlockState::Inactive);
                 Ok(())
@@ -55,24 +58,29 @@ where
     }
 
     /// sets the inner value, and asserts the interlock if the inner value is no longer clear
-    pub fn set(&self, new_value: T) {
-        self.inner.replace(new_value);
+    pub fn set(&self, new_value: T::UpdateType) {
+        self.inner.set(new_value);
 
         // if we aren't in an active interlock state, and we
         // aren't clear anymore, assert the interlock
-        if (!self.inner.borrow().is_clear()) && (*self.state.borrow() == InterlockState::Inactive) {
-            self.state.replace(InterlockState::Active);
+        if (!self.inner.is_clear()) && (self.state.get() == InterlockState::Inactive) {
+            self.state.set(InterlockState::Active);
         }
+    }
+
+    /// clear the inner value with an update type
+    pub fn clear(&self, new_value: T::UpdateType) {
+        self.inner.clear(new_value);
     }
 
     /// get the state of the interlock
     pub fn get_state(&self) -> InterlockState {
-        self.state.borrow().clone()
+        self.state.get()
     }
 
     /// get a clone of the inner value
     pub fn get_inner(&self) -> T {
-        self.inner.borrow().clone()
+        self.inner.clone()
     }
 
     /// get a ref of the inner value
@@ -86,9 +94,30 @@ mod tests {
 
     use super::*;
 
-    impl Interlockable for bool {
+    #[derive(Clone)]
+    struct InterlockableBool {
+        val: Cell<bool>,
+    }
+    impl InterlockableBool {
+        fn new(val: bool) -> Self {
+            Self {
+                val: Cell::new(val),
+            }
+        }
+    }
+
+    impl Interlockable for InterlockableBool {
+        type UpdateType = bool;
         fn is_clear(&self) -> bool {
-            !self.clone()
+            !self.val.get()
+        }
+
+        fn set(&self, new: Self::UpdateType) {
+            self.val.set(new);
+        }
+
+        fn clear(&self, new: Self::UpdateType) {
+            self.val.set(new);
         }
     }
 
@@ -96,12 +125,12 @@ mod tests {
     /// test that clearing an interlock fails if the underlying value is not clear
     fn try_clear() {
         // happy case
-        let i1: Interlock<bool> = Interlock::new(false);
+        let i1: Interlock<InterlockableBool> = Interlock::new(InterlockableBool::new(false));
         let r = i1.try_clear_interlock();
         assert_eq!(r, Ok(()));
 
         // sad case
-        let i1: Interlock<bool> = Interlock::new(true);
+        let i1: Interlock<InterlockableBool> = Interlock::new(InterlockableBool::new(true));
         let r = i1.try_clear_interlock();
         assert_eq!(r, Err(Error::ClearError))
     }
@@ -110,7 +139,7 @@ mod tests {
     /// test that changing the inner value to a non-clear value asserts the interlock
     /// and that the interlock stays asserted after the value goes back to clear
     fn new_value_sets_interlock() {
-        let i1: Interlock<bool> = Interlock::new(false);
+        let i1: Interlock<InterlockableBool> = Interlock::new(InterlockableBool::new(false));
         assert_eq!(i1.get_state(), InterlockState::Inactive);
         i1.set(true);
         assert_eq!(i1.get_state(), InterlockState::Active);
